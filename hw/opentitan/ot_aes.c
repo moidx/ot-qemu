@@ -2,6 +2,7 @@
  * QEMU OpenTitan AES device
  *
  * Copyright (c) 2022-2024 Rivos, Inc.
+ * Copyright (c) 2025 lowRISC contributors.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -433,9 +434,11 @@ static void ot_aes_init_keyshare(OtAESState *s, bool randomize)
     OtAESRegisters *r = s->regs;
     OtAESContext *c = s->ctx;
 
-    trace_ot_aes_init("keyshare");
     if (randomize) {
+        trace_ot_aes_init("keyshare init (randomize data)");
         ot_aes_randomize(s, r->keyshare, ARRAY_SIZE(r->keyshare));
+    } else {
+        trace_ot_aes_init("keyshare init (data preserved)");
     }
     bitmap_zero(r->keyshare_bm, (int64_t)(PARAM_NUM_REGS_KEY * 2u));
     c->key_ready = false;
@@ -446,9 +449,11 @@ static void ot_aes_init_iv(OtAESState *s, bool randomize)
     OtAESRegisters *r = s->regs;
     OtAESContext *c = s->ctx;
 
-    trace_ot_aes_init("iv");
     if (randomize) {
+        trace_ot_aes_init("iv init (randomize data)");
         ot_aes_randomize(s, r->iv, ARRAY_SIZE(r->iv));
+    } else {
+        trace_ot_aes_init("iv init (data preserved)");
     }
     bitmap_zero(r->iv_bm, PARAM_NUM_REGS_IV);
     c->iv_ready = false;
@@ -874,13 +879,18 @@ static void ot_aes_process(OtAESState *s)
     c->di_full = false;
 
     if (rc == CRYPT_OK) {
-        /* IV registers are updated on each round */
+        /*
+         * IV registers are updated on each round. For details, see:
+         * https://opentitan.org/book/hw/ip/aes/doc/theory_of_operation.html
+         * https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+         */
         switch (mode) {
         case AES_CBC:
             memcpy(c->iv, c->cbc.IV, sizeof(c->iv));
             break;
         case AES_CFB:
-            memcpy(c->iv, c->cfb.IV, sizeof(c->iv));
+            /* In CFB mode the next IV register value is the ciphertext */
+            memcpy(c->iv, encrypt ? c->dst : c->src, sizeof(c->iv));
             break;
         case AES_OFB:
             memcpy(c->iv, c->ofb.IV, sizeof(c->iv));
