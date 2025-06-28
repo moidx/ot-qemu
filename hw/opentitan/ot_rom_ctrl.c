@@ -317,36 +317,22 @@ static void ot_rom_ctrl_compare_and_notify(OtRomCtrlState *s)
 
 static void ot_rom_ctrl_send_kmac_req(OtRomCtrlState *s)
 {
-    g_assert(s->se_buffer);
-    fifo8_reset(&s->hash_fifo);
+    OtKMACAppReq req;
+    unsigned len;
 
-    while (!fifo8_is_full(&s->hash_fifo) && (s->se_pos < s->se_last_pos)) {
-        unsigned word_pos = s->se_pos / OT_ROM_CTRL_WORD_BYTES;
-        unsigned word_off = s->se_pos % OT_ROM_CTRL_WORD_BYTES;
-        unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, word_pos);
-        uint8_t wbuf[sizeof(uint64_t)];
-        stq_le_p(wbuf, s->se_buffer[phy_addr]);
-        uint8_t *wb = wbuf;
-        unsigned wl = OT_ROM_CTRL_WORD_BYTES;
-        wb += word_off;
-        wl -= word_off;
-        wl = MIN(wl, fifo8_num_free(&s->hash_fifo));
-        s->se_pos += wl;
-        while (wl--) {
-            fifo8_push(&s->hash_fifo, *wb++);
-        }
+    memset(&req, 0, sizeof(req));
+
+    if (fifo8_is_empty(&s->hash_fifo)) {
+        /* nothing to do */
+        return;
     }
 
-    g_assert(!fifo8_is_empty(&s->hash_fifo));
+    len = fifo8_num_used(&s->hash_fifo);
+    g_assert(len <= sizeof(req.msg_data));
+    req.msg_len = len;
+    fifo8_pop_buf(&s->hash_fifo, req.msg_data, len);
 
-    OtKMACAppReq req = {
-        .last = s->se_pos == s->se_last_pos,
-        .msg_len = fifo8_num_used(&s->hash_fifo),
-    };
-    uint32_t blen;
-    const uint8_t *buf = fifo8_pop_bufptr(&s->hash_fifo, req.msg_len, &blen);
-    g_assert(blen == req.msg_len);
-    memcpy(req.msg_data, buf, req.msg_len);
+    req.last = fifo8_is_empty(&s->hash_fifo);
 
     ot_kmac_app_request(s->kmac, s->kmac_app, &req);
 }

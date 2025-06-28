@@ -67,8 +67,10 @@ typedef struct {
 #define OT_KMAC_APP_DIGEST_BYTES (384u / 8u)
 
 typedef struct {
+    const uint8_t *key;
+    size_t key_len;
     uint8_t msg_data[OT_KMAC_APP_MSG_BYTES];
-    size_t msg_len; /* meaningful count of bytes in msg_data */
+    size_t msg_len;
     bool last;
 } OtKMACAppReq;
 

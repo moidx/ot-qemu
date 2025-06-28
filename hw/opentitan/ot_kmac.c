@@ -865,10 +865,18 @@ static void ot_kmac_process_start(OtKMACState *s)
                              cfg->prefix.customstr, cfg->prefix.customstr_len);
             /* if KMAC mode is enabled, process key */
             if (cfg->mode == OT_KMAC_MODE_KMAC) {
-                uint8_t key[NUM_KEY_REGS * sizeof(uint32_t)];
-                size_t keylen = ot_kmac_get_key_length(s) / 8u;
-                ot_kmac_get_key(s, key, keylen);
-                sha3_process_kmac_key(&s->ltc_state, key, keylen);
+                if (s->current_app) {
+                    if (s->current_app->req.key) {
+                        sha3_process_kmac_key(&s->ltc_state,
+                                              s->current_app->req.key,
+                                              s->current_app->req.key_len);
+                    }
+                } else {
+                    uint8_t key[NUM_KEY_REGS * sizeof(uint32_t)];
+                    size_t keylen = ot_kmac_get_key_length(s) / 8u;
+                    ot_kmac_get_key(s, key, keylen);
+                    sha3_process_kmac_key(&s->ltc_state, key, keylen);
+                }
             }
             break;
         }

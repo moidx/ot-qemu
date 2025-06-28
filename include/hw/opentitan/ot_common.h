@@ -249,7 +249,7 @@ static inline int ot_shadow_reg_write(OtShadowReg *sreg, uint32_t value)
 }
 
 /**
- * Return the current committed register value
+ * Peek at a shadow register. It does not change its state.
  */
 static inline uint32_t ot_shadow_reg_peek(const OtShadowReg *sreg)
 {
@@ -257,7 +257,8 @@ static inline uint32_t ot_shadow_reg_peek(const OtShadowReg *sreg)
 }
 
 /**
- * Discard the staged value and return the current committed register value
+ * Read the committed value of a shadow register.
+ * Any staged value is discarded.
  */
 static inline uint32_t ot_shadow_reg_read(OtShadowReg *sreg)
 {

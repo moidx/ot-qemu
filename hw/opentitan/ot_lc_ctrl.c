@@ -1047,22 +1047,9 @@ static uint32_t ot_lc_ctrl_get_target_state(const OtLcCtrlState *s)
     return s->xregs[sreq][R_TRANSITION_TARGET - R_FIRST_EXCLUSIVE_REG];
 }
 
-static void ot_lc_ctrl_load_hashed_token(OtLcCtrlState *s)
-{
-    g_assert(LC_XSLOT(s->owner) < EXCLUSIVE_SLOTS_COUNT);
-
-    const uint32_t *xregs = s->xregs[LC_XSLOT(s->owner)];
-
-    s->hash_token.lo =
-        (uint64_t)xregs[XREGS_OFFSET(R_TRANSITION_TOKEN_0)] |
-        (((uint64_t)xregs[XREGS_OFFSET(R_TRANSITION_TOKEN_1)]) << 32u);
-    s->hash_token.hi =
-        (uint64_t)xregs[XREGS_OFFSET(R_TRANSITION_TOKEN_2)] |
-        (((uint64_t)xregs[XREGS_OFFSET(R_TRANSITION_TOKEN_3)]) << 32u);
-}
-
 static void ot_lc_ctrl_kmac_request(OtLcCtrlState *s)
 {
+    g_assert(s->kmac_state == ST_KMAC_FIRST || s->kmac_state == ST_KMAC_SECOND);
     g_assert(LC_XSLOT(s->owner) < EXCLUSIVE_SLOTS_COUNT);
 
     const uint32_t *xregs = s->xregs[LC_XSLOT(s->owner)];
@@ -1071,16 +1058,23 @@ static void ot_lc_ctrl_kmac_request(OtLcCtrlState *s)
                     XREGS_OFFSET(R_TRANSITION_TOKEN_2) :
                     XREGS_OFFSET(R_TRANSITION_TOKEN_0))];
 
-    OtKMACAppReq req = {
-        .msg_len = 8u,
-        .last = s->kmac_state == ST_KMAC_SECOND,
-    };
+    OtKMACAppReq req;
+    memset(&req, 0, sizeof(req));
+
+    req.msg_len = 8u;
+    req.last = s->kmac_state == ST_KMAC_SECOND;
     stl_le_p(&req.msg_data[0], token[0]);
     stl_le_p(&req.msg_data[sizeof(uint32_t)], token[1]);
 
     TRACE_LC_CTRL("KMAC input: %s", ot_lc_ctrl_hexdump(&req.msg_data[0], 8u));
 
     ot_kmac_app_request(s->kmac, s->kmac_app, &req);
+}
+
+static void ot_lc_ctrl_load_hashed_token(OtLcCtrlState *s)
+{
+    s->kmac_state = ST_KMAC_FIRST;
+    ot_lc_ctrl_kmac_request(s);
 }
 
 static void ot_lc_ctrl_kmac_handle_resp(void *opaque, const OtKMACAppRsp *rsp)
